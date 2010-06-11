@@ -12,6 +12,7 @@ package org.robotlegs.base
 	import flash.display.Sprite;
 	import flash.events.Event;
 	import flash.utils.Dictionary;
+	import flash.utils.describeType;
 	import flash.utils.getQualifiedClassName;
 	
 	import org.robotlegs.core.IInjector;
@@ -52,6 +53,11 @@ package org.robotlegs.base
 		/**
 		 * @private
 		 */
+		protected var unmappedViews:Dictionary;
+		
+		/**
+		 * @private
+		 */
 		protected var hasMediatorsMarkedForRemoval:Boolean;
 		
 		/**
@@ -81,6 +87,7 @@ package org.robotlegs.base
 			this.mappingConfigByView = new Dictionary(true);
 			this.mappingConfigByViewClassName = new Dictionary(false);
 			this.mediatorsMarkedForRemoval = new Dictionary(false);
+			this.unmappedViews = new Dictionary(false);
 		}
 		
 		//---------------------------------------------------------------------
@@ -119,7 +126,7 @@ package org.robotlegs.base
 				createMediator(contextView);
 			}
 			activate();
-		}
+		}		
 		
 		/**
 		 * @inheritDoc
@@ -139,7 +146,7 @@ package org.robotlegs.base
 			if (mediator == null)
 			{
 				var viewClassName:String = getQualifiedClassName(viewComponent);
-				var config:MappingConfig = mappingConfigByViewClassName[viewClassName];
+				var config:MappingConfig = getMappingConfig(viewComponent);
 				if (config)
 				{
 					injector.mapValue(config.typedViewClass, viewComponent);
@@ -158,7 +165,7 @@ package org.robotlegs.base
 		{
 			injector.mapValue(reflector.getClass(mediator), mediator);
 			mediatorByView[viewComponent] = mediator;
-			mappingConfigByView[viewComponent] = mappingConfigByViewClassName[getQualifiedClassName(viewComponent)];
+			mappingConfigByView[viewComponent] = getMappingConfig(viewComponent);
 			mediator.setViewComponent(viewComponent);
 			mediator.preRegister();
 		}
@@ -257,7 +264,7 @@ package org.robotlegs.base
 				delete mediatorsMarkedForRemoval[e.target];
 				return;
 			}
-			var config:MappingConfig = mappingConfigByViewClassName[getQualifiedClassName(e.target)];
+			var config:MappingConfig = getMappingConfig(e.target);
 			if (config && config.autoCreate)
 			{
 				createMediator(e.target);
@@ -297,6 +304,36 @@ package org.robotlegs.base
 			}
 			hasMediatorsMarkedForRemoval = false;
 		}
+		
+		private function getMappingConfig(viewComponent:Object):MappingConfig
+		{
+			var className:String = getQualifiedClassName(viewComponent);
+			if (unmappedViews[className])
+			{
+				return null;
+			}
+			var config:MappingConfig = mappingConfigByViewClassName[className];
+			if (!config)
+			{
+				var classXML:XML = describeType(viewComponent);
+				for each (var implementedInterface:XML in classXML.implementsInterface)
+				{
+					var interfaceName:String = implementedInterface.@type;
+					config=mappingConfigByViewClassName[interfaceName];
+					if (config)
+					{
+						mappingConfigByViewClassName[className]=config;
+						break;
+					}
+				}
+			}
+			if (!config)
+			{
+				unmappedViews[className]=1;
+			}
+			return config;
+		}
+
 	}
 }
 
